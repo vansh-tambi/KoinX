@@ -3,13 +3,19 @@ import reconciliationController from '../controllers/reconciliationController.js
 
 const router = Router();
 
-// Async reconciliation workflow endpoint
+// Asynchronous reconciliation run trigger
 router.post('/reconcile', reconciliationController.triggerReconciliation);
 
-// Backward compatible trigger route
-router.post('/trigger', reconciliationController.triggerReconciliation);
+// Retrieve flat matching reports list
+router.get('/report/:runId', reconciliationController.getReconciliationReport);
 
-// Endpoint to retrieve reports
-router.get('/reports/:reportId', reconciliationController.getReconciliationReport);
+// Retrieve matching summaries statistics
+router.get('/report/:runId/summary', reconciliationController.getReconciliationSummary);
+
+// Retrieve unmatched user & exchange records list
+router.get('/report/:runId/unmatched', reconciliationController.getUnmatchedReports);
+
+// Export CSV report file download
+router.get('/report/:runId/export', reconciliationController.exportReportCsv);
 
 export default router;

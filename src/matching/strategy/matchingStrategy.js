@@ -29,11 +29,18 @@ export const checkTypeAlignment = (type1, type2) => {
  * 
  * @param {Object} userTx - The Mongoose Transaction document from USER.
  * @param {Object} exchangeTx - The Mongoose Transaction document from EXCHANGE.
+ * @param {Object} [customTolerances] - Optional custom tolerances overrides.
+ * @param {number} [customTolerances.timestampToleranceSeconds]
+ * @param {number} [customTolerances.quantityTolerancePct]
  * @returns {{ isMatch: boolean, confidence: number, reason: string }}
  */
-export const calculateMatchScore = (userTx, exchangeTx) => {
+export const calculateMatchScore = (userTx, exchangeTx, customTolerances = {}) => {
   const u = userTx.normalized;
   const e = exchangeTx.normalized;
+
+  // Resolve config-driven tolerances or fallback to defaults
+  const timestampToleranceLimit = customTolerances.timestampToleranceSeconds || tolerances.timestampToleranceSeconds;
+  const quantityToleranceLimit = customTolerances.quantityTolerancePct || tolerances.quantityTolerancePct;
 
   // 1. Asset must match exactly.
   if (u.asset !== e.asset) {
@@ -50,24 +57,24 @@ export const calculateMatchScore = (userTx, exchangeTx) => {
 
   // 3. Timestamp proximity check (Weight = 50)
   const timeDiffSeconds = Math.abs(u.timestamp.getTime() - e.timestamp.getTime()) / 1000;
-  const isTimeWithinTolerance = timeDiffSeconds <= tolerances.timestampToleranceSeconds;
+  const isTimeWithinTolerance = timeDiffSeconds <= timestampToleranceLimit;
   
   let timestampScore = 0;
   if (isTimeWithinTolerance) {
     // Proportional matching score: linear decay towards the tolerance limit
-    timestampScore = 50 * (1 - (timeDiffSeconds / tolerances.timestampToleranceSeconds));
+    timestampScore = 50 * (1 - (timeDiffSeconds / timestampToleranceLimit));
   }
 
   // 4. Quantity proximity check (Weight = 30)
   const qtyDiff = Math.abs(u.quantity - e.quantity);
   // Relativize quantity difference to user quantity
   const qtyPct = u.quantity > 0 ? qtyDiff / u.quantity : 0;
-  const isQtyWithinTolerance = qtyPct <= tolerances.quantityTolerancePct;
+  const isQtyWithinTolerance = qtyPct <= quantityToleranceLimit;
 
   let quantityScore = 0;
   if (isQtyWithinTolerance) {
     // Proportional matching score: linear decay towards the tolerance limit
-    quantityScore = 30 * (1 - (qtyPct / tolerances.quantityTolerancePct));
+    quantityScore = 30 * (1 - (qtyPct / quantityToleranceLimit));
   }
 
   // Total scoring (max 100) and confidence (0.0 to 1.0)

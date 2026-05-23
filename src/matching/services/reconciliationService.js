@@ -17,6 +17,12 @@ export const runReconciliation = async (runId) => {
     throw new Error(`ReconciliationRun not found with runId: ${runId}`);
   }
 
+  // Extract run-specific matching tolerances from configurations
+  const customTolerances = {
+    timestampToleranceSeconds: run.config?.timestampTolerance,
+    quantityTolerancePct: run.config?.quantityTolerance,
+  };
+
   // Retrieve all valid, unreconciled transactions for this run
   const userTxs = await transactionRepository.findAll({
     runId,
@@ -57,7 +63,8 @@ export const runReconciliation = async (runId) => {
 
     const exchangeTx = exchangeMap.get(txId);
     if (exchangeTx) {
-      const matchResult = calculateMatchScore(userTx, exchangeTx);
+      // Pass the custom tolerances override
+      const matchResult = calculateMatchScore(userTx, exchangeTx, customTolerances);
 
       if (matchResult.isMatch) {
         // High confidence match confirmed
@@ -113,7 +120,8 @@ export const runReconciliation = async (runId) => {
       // Skip if exchange transaction has already been matched during Pass 2
       if (matchedTxIds.has(exchangeTx._id)) continue;
 
-      const scoreResult = calculateMatchScore(userTx, exchangeTx);
+      // Pass the custom tolerances override
+      const scoreResult = calculateMatchScore(userTx, exchangeTx, customTolerances);
 
       // Pass 2 proximity matches must meet tolerance checks
       if (scoreResult.isMatch && scoreResult.confidence > highestConfidence) {

@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import redisConfig from '../config/redis.js';
+import { ingestCsvFile } from '../ingestion/ingestionService.js';
 import { runReconciliation } from '../matching/services/reconciliationService.js';
 import { generateReportsForRun } from '../reporting/reportService.js';
 import reconciliationRunRepository from '../repositories/reconciliationRunRepository.js';
@@ -11,14 +12,14 @@ const connection = {
 
 /**
  * Initializes and starts the BullMQ background worker.
- * Orchestrates the matching pipeline followed by flat CSV/JSON report exports.
+ * Orchestrates the full async pipeline: Ingest User CSV + Ingest Exchange CSV + Reconciliation Matching + Exporter.
  */
 export const startReconciliationWorker = () => {
   const worker = new Worker(
     'reconciliation-jobs',
     async (job) => {
-      const { runId } = job.data;
-      console.log(`[WORKER] Starting matching job ${job.id} for runId: ${runId}`);
+      const { runId, userFile, exchangeFile } = job.data;
+      console.log(`[WORKER] Starting job ${job.id} for runId: ${runId}`);
       
       try {
         // 1. Fetch ReconciliationRun
@@ -31,11 +32,18 @@ export const startReconciliationWorker = () => {
         run.status = 'PROCESSING';
         await run.save();
 
-        // 2. Execute reconciliation matching algorithm
+        // 2. Ingest CSV files
+        console.log(`[WORKER] Ingesting User file: ${userFile}`);
+        await ingestCsvFile(userFile, runId, 'USER');
+
+        console.log(`[WORKER] Ingesting Exchange file: ${exchangeFile}`);
+        await ingestCsvFile(exchangeFile, runId, 'EXCHANGE');
+
+        // 3. Execute reconciliation matching algorithm
         console.log(`[WORKER] Running matching service for runId: ${runId}`);
         const matchResult = await runReconciliation(runId);
 
-        // 3. Generate CSV and JSON reports and save to reports/
+        // 4. Generate CSV and JSON reports and save to reports/
         console.log(`[WORKER] Generating and storing reports for runId: ${runId}`);
         const reportResult = await generateReportsForRun(runId);
 
