@@ -3,7 +3,10 @@ import reconciliationController from '../controllers/reconciliationController.js
 
 const router = Router();
 
-// Endpoint to trigger matching runs
+// Async reconciliation workflow endpoint
+router.post('/reconcile', reconciliationController.triggerReconciliation);
+
+// Backward compatible trigger route
 router.post('/trigger', reconciliationController.triggerReconciliation);
 
 // Endpoint to retrieve reports

@@ -1,6 +1,8 @@
 import { Worker } from 'bullmq';
 import redisConfig from '../config/redis.js';
 import { runReconciliation } from '../matching/services/reconciliationService.js';
+import { generateReportsForRun } from '../reporting/reportService.js';
+import reconciliationRunRepository from '../repositories/reconciliationRunRepository.js';
 
 const connection = {
   host: redisConfig.host,
@@ -8,30 +10,64 @@ const connection = {
 };
 
 /**
- * Initializes and starts the BullMQ worker.
+ * Initializes and starts the BullMQ background worker.
+ * Orchestrates the matching pipeline followed by flat CSV/JSON report exports.
  */
 export const startReconciliationWorker = () => {
   const worker = new Worker(
     'reconciliation-jobs',
     async (job) => {
-      console.log(`Processing job ${job.id} for run ${job.data.runId}...`);
+      const { runId } = job.data;
+      console.log(`[WORKER] Starting matching job ${job.id} for runId: ${runId}`);
+      
       try {
-        const report = await runReconciliation(job.data.runId);
-        console.log(`Job ${job.id} completed. Report generated: ${report._id}`);
-        return { reportId: report._id };
+        // 1. Fetch ReconciliationRun
+        const run = await reconciliationRunRepository.findByRunId(runId);
+        if (!run) {
+          throw new Error(`ReconciliationRun not found with runId: ${runId}`);
+        }
+
+        // Update run status to PROCESSING
+        run.status = 'PROCESSING';
+        await run.save();
+
+        // 2. Execute reconciliation matching algorithm
+        console.log(`[WORKER] Running matching service for runId: ${runId}`);
+        const matchResult = await runReconciliation(runId);
+
+        // 3. Generate CSV and JSON reports and save to reports/
+        console.log(`[WORKER] Generating and storing reports for runId: ${runId}`);
+        const reportResult = await generateReportsForRun(runId);
+
+        console.log(`[WORKER] Matching job ${job.id} completed successfully for runId: ${runId}`);
+        return {
+          runId,
+          summary: matchResult.summary,
+          files: reportResult.files,
+        };
       } catch (err) {
-        console.error(`Error processing job ${job.id}:`, err);
+        console.error(`[WORKER] Job ${job.id} execution failed:`, err);
         throw err;
       }
     },
     {
       connection,
-      concurrency: 1, // Process one reconciliation job at a time
+      concurrency: 1, // Processes one reconciliation run at a time
     }
   );
 
-  worker.on('failed', (job, err) => {
-    console.error(`Job ${job?.id} failed with error:`, err);
+  worker.on('failed', async (job, err) => {
+    console.error(`[WORKER] Job ${job?.id} failed with error:`, err);
+    if (job?.data?.runId) {
+      // Mark run as FAILED and log error message
+      const run = await reconciliationRunRepository.findByRunId(job.data.runId);
+      if (run) {
+        run.status = 'FAILED';
+        run.completedAt = new Date();
+        run.summary = { ...run.summary, errorMessage: err.message };
+        await run.save();
+      }
+    }
   });
 
   return worker;

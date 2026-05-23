@@ -4,32 +4,35 @@ import { queueReconciliationJob } from '../jobs/reconciliationQueue.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Trigger reconciliation run for processing.
+ * Triggers an asynchronous reconciliation process by queuing it in BullMQ.
+ * Returns standard { runId, status: "queued" } payload.
  */
 export const triggerReconciliation = async (req, res, next) => {
   try {
-    const runNumber = `RUN-${Date.now()}`;
+    const runId = uuidv4();
     
-    // Create new reconciliation run tracking record
+    // Create the reconciliation run record in DB
     const run = await reconciliationRunRepository.create({
-      runNumber,
+      runId,
       status: 'PENDING',
-      initiatedBy: req.body.initiatedBy || 'API',
+      config: req.body.config || {},
       startedAt: new Date(),
-      rawConfig: req.body.config || {},
+      summary: {
+        totalTransactions: 0,
+        matchedCount: 0,
+        conflictingCount: 0,
+        unmatchedUserCount: 0,
+        unmatchedExchangeCount: 0
+      }
     });
 
-    // Add reconciliation processing job to BullMQ
-    await queueReconciliationJob(run._id);
+    // Enqueue job to BullMQ
+    await queueReconciliationJob(run.runId);
 
+    // Return the specified async payload
     res.status(202).json({
-      success: true,
-      message: 'Reconciliation run triggered and queued successfully.',
-      data: {
-        runId: run._id,
-        runNumber: run.runNumber,
-        status: run.status,
-      },
+      runId: run.runId,
+      status: 'queued',
     });
   } catch (err) {
     next(err);
