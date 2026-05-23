@@ -1,0 +1,27 @@
+category,confidence,reason,user_txId,user_timestamp,user_asset,user_quantity,exchange_txId,exchange_timestamp,exchange_asset,exchange_quantity
+matched,0.7333,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 32.0s, quantity variance 0.000%",USR-001,2024-03-01T09:00:00.000Z,BTC,0.5,EXC-1001,2024-03-01T09:00:32.000Z,BTC,0.5
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-002,2024-03-01T11:30:00.000Z,ETH,2,EXC-1002,2024-03-01T11:30:00.000Z,ETH,2
+matched,0.9167,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 10.0s, quantity variance 0.000%",USR-003,2024-03-02T08:15:00.000Z,BTC,0.1,EXC-1003,2024-03-02T08:15:10.000Z,BTC,0.1
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-004,2024-03-02T14:45:00.000Z,ETH,1,EXC-1004,2024-03-02T14:45:00.000Z,ETH,1
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-006,2024-03-03T16:20:00.000Z,USDT,500,EXC-1006,2024-03-03T16:20:00.000Z,USDT,500
+matched,0.5417,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 55.0s, quantity variance 0.000%",USR-007,2024-03-04T09:05:00.000Z,ETH,0.5,EXC-1007,2024-03-04T09:05:55.000Z,ETH,0.5
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-008,2024-03-04T12:00:00.000Z,SOL,10,EXC-1008,2024-03-04T12:00:00.000Z,SOL,10
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-009,2024-03-05T08:30:00.000Z,BTC,0.05,EXC-1009,2024-03-05T08:30:00.000Z,BTC,0.05
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-010,2024-03-05T15:00:00.000Z,ETH,1.5,EXC-1010,2024-03-05T15:00:00.000Z,ETH,1.5
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-011,2024-03-06T10:15:00.000Z,SOL,5,EXC-1011,2024-03-06T10:15:00.000Z,SOL,5
+matched,0.995,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.033%",USR-012,2024-03-06T13:30:00.000Z,BTC,0.3,EXC-1012,2024-03-06T13:30:00.000Z,BTC,0.3001
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-013,2024-03-07T09:45:00.000Z,MATIC,200,EXC-1013,2024-03-07T09:45:00.000Z,MATIC,200
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-014,2024-03-07T14:00:00.000Z,USDT,200,EXC-1014,2024-03-07T14:00:00.000Z,USDT,200
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-015,2024-03-08T11:00:00.000Z,ETH,0.8,EXC-1015,2024-03-08T11:00:00.000Z,ETH,0.8
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-016,2024-03-08T16:45:00.000Z,SOL,3,EXC-1016,2024-03-08T16:45:00.000Z,SOL,3
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-017,2024-03-09T10:30:00.000Z,BTC,0.2,EXC-1017,2024-03-09T10:30:00.000Z,BTC,0.2
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-020,2024-03-10T13:00:00.000Z,BTC,0.15,EXC-1019,2024-03-10T13:00:00.000Z,BTC,0.15
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-021,2024-03-11T09:00:00.000Z,ETH,1,EXC-1020,2024-03-11T09:00:00.000Z,ETH,1
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-022,2024-03-11T15:20:00.000Z,LINK,50,EXC-1021,2024-03-11T15:20:00.000Z,LINK,50
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-023,2024-03-12T10:00:00.000Z,MATIC,100,EXC-1022,2024-03-12T10:00:00.000Z,MATIC,100
+matched,1,"Pass 2 Proximity Match: Confirmed match: type aligns, time difference 0.0s, quantity variance 0.000%",USR-025,2024-03-13T09:15:00.000Z,BTC,0.35,EXC-1023,2024-03-13T09:15:00.000Z,BTC,0.35
+unmatched_user,1,No matching exchange transaction found by ID or proximity window.,USR-005,2024-03-03T10:00:00.000Z,BTC,0.25,,,,
+unmatched_exchange,1,No matching user transaction found by ID or proximity window.,,,,,EXC-1005,2024-03-03T10:02:00.000Z,BTC,0.25
+unmatched_exchange,1,No matching user transaction found by ID or proximity window.,,,,,EXC-1018,2024-03-09T17:00:00.000Z,ETH,0.3
+unmatched_exchange,1,No matching user transaction found by ID or proximity window.,,,,,EXC-1024,2024-03-13T18:00:00.000Z,ETH,0.6
+unmatched_exchange,1,No matching user transaction found by ID or proximity window.,,,,,EXC-1025,2024-03-14T10:00:00.000Z,BTC,0.2
