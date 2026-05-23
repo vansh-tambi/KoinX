@@ -338,6 +338,7 @@ Matches user ledger transactions to exchange transactions with identical transac
 
 ### 2. Pass 2: Proximity Matching (Fuzzy Search)
 Applies to remaining unmatched records (e.g., User transactions recorded with a different local ID structure than the Exchange statement).
+* **Asset-partitioned binary-search proximity matching (O(U log E))**: Unmatched exchange transactions are partitioned by asset into sorted buckets by timestamp. For each unmatched user transaction, we binary search the corresponding asset bucket to isolate the subset of candidates within the temporal window, avoiding exhaustive matching.
 * Matches pairs based on asset, type, timestamp difference (must be within `timestampTolerance`), and quantity variance (must be within `quantityTolerance`).
 * Resolves **TRANSFER_OUT** (User ledger sending out) ➔ **TRANSFER_IN** (Exchange ledger receiving in).
 * Maps user record to the candidate exchange record yielding the **highest confidence score**.
@@ -349,7 +350,7 @@ Applies to remaining unmatched records (e.g., User transactions recorded with a 
 ### 1. Why Greedy Choice instead of Maximum Bipartite Matching?
 * **Problem**: In graph theory, matching nodes in a bipartite graph (User transactions mapped to Exchange transactions) is ideally solved using global optimizations such as the Hungarian Algorithm.
 * **Tradeoff**: The Hungarian Algorithm runs in **`O(V³)`** time. If we reconcile $100,000$ transactions, it would require $10^{15}$ operations, which is computationally impossible for realtime or queue-based backend servers.
-* **Solution**: The engine uses a localized **Greedy Proximity Choice** bounded by time windows. Transactions are partitioned by Asset and Type first. For a given transaction, we search only within the specific time tolerance window. This limits the search to a small subset, reducing complexity in practice close to **`O(N + M)`**.
+* **Solution**: The engine uses a localized **Greedy Proximity Choice** bounded by time windows. By partitioning the search space by asset and using binary search to look up temporal boundaries, matching runs in **`O(U log E)`** time (where $U$ is the number of unmatched user transactions and $E$ is the number of exchange transactions), avoiding exhaustive nested iterations.
 * **Order Preservation**: Running Pass 1 first ensures that exact ID matches are locked in and removed from the candidate pool, preventing greedy matching in Pass 2 from falsely claiming them.
 
 ### 2. Weighted Confidence Scoring

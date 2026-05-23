@@ -3,6 +3,7 @@ import reconciliationRunRepository from '../../repositories/reconciliationRunRep
 import reconciliationReportRepository from '../../repositories/reconciliationReportRepository.js';
 import Transaction from '../../models/transaction.js';
 import { calculateMatchScore } from '../strategy/matchingStrategy.js';
+import tolerances from '../../config/tolerances.js';
 
 /**
  * Executes the two-pass reconciliation flow over ingested transactions.
@@ -111,19 +112,80 @@ export const runReconciliation = async (runId) => {
   // ==========================================
   // PASS 2: Proximity Matching (Weighted scoring)
   // ==========================================
+  
+  // Resolve current timestamp tolerance limit
+  const timestampToleranceLimit = customTolerances.timestampToleranceSeconds ?? tolerances.timestampToleranceSeconds;
+
+  // Step 1: Group unmatched Exchange transactions by asset
+  const exchangeAssetGroups = new Map();
+  for (const tx of unmatchedExchangeList) {
+    const asset = tx.normalized.asset;
+    if (!exchangeAssetGroups.has(asset)) {
+      exchangeAssetGroups.set(asset, []);
+    }
+    exchangeAssetGroups.get(asset).push(tx);
+  }
+
+  // Step 2: Sort each asset bucket by timestamp ascending
+  for (const bucket of exchangeAssetGroups.values()) {
+    bucket.sort((a, b) => a.normalized.timestamp.getTime() - b.normalized.timestamp.getTime());
+  }
+
+  // Binary search helper to find the first index in arr where timestamp is >= targetTimeMs
+  const findFirstIndexInRange = (arr, targetTimeMs) => {
+    let low = 0;
+    let high = arr.length - 1;
+    let result = arr.length;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const midTime = arr[mid].normalized.timestamp.getTime();
+
+      if (midTime >= targetTimeMs) {
+        result = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+    return result;
+  };
+
+  // Step 3 & 4: Process user transactions using binary search and targeted scoring
   for (const userTx of unmatchedUserList) {
+    const asset = userTx.normalized.asset;
+    const bucket = exchangeAssetGroups.get(asset);
+    if (!bucket || bucket.length === 0) continue;
+
+    const userTimeMs = userTx.normalized.timestamp.getTime();
+    const lowerBoundMs = userTimeMs - timestampToleranceLimit * 1000;
+    const upperBoundMs = userTimeMs + timestampToleranceLimit * 1000;
+
+    // Binary search for first exchange transaction starting within timestamp tolerance window
+    const startIndex = findFirstIndexInRange(bucket, lowerBoundMs);
+
     let bestExchangeTx = null;
     let highestConfidence = 0;
     let bestReason = '';
 
-    for (const exchangeTx of unmatchedExchangeList) {
-      // Skip if exchange transaction has already been matched during Pass 2
-      if (matchedTxIds.has(exchangeTx._id)) continue;
+    // Iterate forward through sorted candidate list inside window
+    for (let i = startIndex; i < bucket.length; i++) {
+      const exchangeTx = bucket[i];
+      const exchangeTimeMs = exchangeTx.normalized.timestamp.getTime();
 
-      // Pass the custom tolerances override
+      // Exceeded upper bound of timestamp tolerance window; stop searching
+      if (exchangeTimeMs > upperBoundMs) {
+        break;
+      }
+
+      // Skip already matched exchange transactions
+      if (matchedTxIds.has(exchangeTx._id)) {
+        continue;
+      }
+
+      // Calculate match score
       const scoreResult = calculateMatchScore(userTx, exchangeTx, customTolerances);
 
-      // Pass 2 proximity matches must meet tolerance checks
       if (scoreResult.isMatch && scoreResult.confidence > highestConfidence) {
         highestConfidence = scoreResult.confidence;
         bestExchangeTx = exchangeTx;
@@ -131,6 +193,7 @@ export const runReconciliation = async (runId) => {
       }
     }
 
+    // Lock in the best match
     if (bestExchangeTx) {
       countMatched++;
       matchedTxIds.add(userTx._id);

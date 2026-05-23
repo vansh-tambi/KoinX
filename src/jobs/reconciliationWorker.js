@@ -49,15 +49,20 @@ export const startReconciliationWorker = () => {
         await job.updateProgress(50);
 
         // Update run status with ingestion metrics and transition to MATCHING
-        const totalCount = userResult.totalRows + exchangeResult.totalRows;
+        const totalCount = userResult.rowsProcessed + exchangeResult.rowsProcessed;
         const unreconciledCount = userResult.validRows + exchangeResult.validRows;
         const invalidCount = userResult.invalidRows + exchangeResult.invalidRows;
+        const rowsInserted = userResult.rowsInserted + exchangeResult.rowsInserted;
+        const rowsFailed = userResult.rowsFailed + exchangeResult.rowsFailed;
         
         run.summary = {
           totalCount,
           reconciledCount: 0,
           unreconciledCount,
           invalidCount,
+          rowsProcessed: totalCount,
+          rowsInserted,
+          rowsFailed,
         };
         run.status = 'MATCHING';
         await run.save();

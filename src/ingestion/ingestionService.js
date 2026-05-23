@@ -35,6 +35,29 @@ export const ingestCsvFile = async (filePath, runId, source) => {
 
   const fileStream = fs.createReadStream(filePath);
 
+  const BATCH_SIZE = 500;
+  let batch = [];
+  let rowsInserted = 0;
+  let rowsFailed = 0;
+
+  const flushBatch = async () => {
+    if (batch.length === 0) return;
+    try {
+      const result = await transactionRepository.insertMany(batch, { ordered: false });
+      rowsInserted += result.length;
+    } catch (err) {
+      if (err.name === 'BulkWriteError' || err.code === 11000 || err.writeErrors) {
+        const failedCount = err.writeErrors ? err.writeErrors.length : (batch.length - (err.result?.nInserted || 0));
+        rowsFailed += failedCount;
+        rowsInserted += (batch.length - failedCount);
+      } else {
+        rowsFailed += batch.length;
+        throw err;
+      }
+    }
+    batch = [];
+  };
+
   try {
     await parseCsvStream(
       fileStream,
@@ -64,8 +87,8 @@ export const ingestCsvFile = async (filePath, runId, source) => {
           });
         }
 
-        // Save transaction record to the database (valid: false are still saved)
-        await transactionRepository.create({
+        // Add to batch
+        batch.push({
           runId,
           source: source.toUpperCase(),
           originalRow: row,
@@ -76,6 +99,11 @@ export const ingestCsvFile = async (filePath, runId, source) => {
           },
           reconciliationStatus: 'UNRECONCILED',
         });
+
+        // Insert batch if size matches BATCH_SIZE
+        if (batch.length >= BATCH_SIZE) {
+          await flushBatch();
+        }
       },
       (warning, row) => {
         // If parser encounters row-level structural warnings
@@ -88,7 +116,8 @@ export const ingestCsvFile = async (filePath, runId, source) => {
       }
     );
 
-    // No longer updating run summary or status here; handled by background worker.
+    // Flush any remaining records in the batch
+    await flushBatch();
 
     return {
       success: true,
@@ -98,6 +127,9 @@ export const ingestCsvFile = async (filePath, runId, source) => {
       validRows,
       invalidRows,
       issues: issuesLog,
+      rowsProcessed: totalRows,
+      rowsInserted,
+      rowsFailed,
     };
 
   } catch (err) {
