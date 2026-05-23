@@ -32,6 +32,14 @@ const reconciliationRunSchema = new mongoose.Schema({
     },
   },
   
+  progress: {
+    type: Number,
+    required: true,
+    min: 0,
+    max: 100,
+    default: 0,
+  },
+  
   summary: {
     type: mongoose.Schema.Types.Mixed,
     default: {

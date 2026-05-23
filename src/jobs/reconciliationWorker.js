@@ -30,6 +30,7 @@ export const startReconciliationWorker = () => {
 
         // Update run status to PROCESSING
         run.status = 'PROCESSING';
+        run.progress = 0;
         run.summary = {
           totalCount: 0,
           reconciledCount: 0,
@@ -37,16 +38,17 @@ export const startReconciliationWorker = () => {
           invalidCount: 0,
         };
         await run.save();
-        await job.updateProgress(10);
+        await job.updateProgress(0);
 
         // 2. Ingest CSV files
         console.log(`[WORKER] Ingesting User file: ${userFile}`);
         const userResult = await ingestCsvFile(userFile, runId, 'USER');
+        run.progress = 30;
+        await run.save();
         await job.updateProgress(30);
 
         console.log(`[WORKER] Ingesting Exchange file: ${exchangeFile}`);
         const exchangeResult = await ingestCsvFile(exchangeFile, runId, 'EXCHANGE');
-        await job.updateProgress(50);
 
         // Update run status with ingestion metrics and transition to MATCHING
         const totalCount = userResult.rowsProcessed + exchangeResult.rowsProcessed;
@@ -65,12 +67,13 @@ export const startReconciliationWorker = () => {
           rowsFailed,
         };
         run.status = 'MATCHING';
+        run.progress = 60;
         await run.save();
+        await job.updateProgress(60);
 
         // 3. Execute reconciliation matching algorithm
         console.log(`[WORKER] Running matching service for runId: ${runId}`);
         const matchResult = await runReconciliation(runId);
-        await job.updateProgress(80);
 
         // Update run status to REPORTING
         run.summary = {
@@ -78,7 +81,9 @@ export const startReconciliationWorker = () => {
           ...matchResult.summary,
         };
         run.status = 'REPORTING';
+        run.progress = 85;
         await run.save();
+        await job.updateProgress(85);
 
         // 4. Generate CSV and JSON reports and save to reports/
         console.log(`[WORKER] Generating and storing reports for runId: ${runId}`);

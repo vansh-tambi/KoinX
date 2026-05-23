@@ -28,6 +28,7 @@ class ReconciliationRunRepository extends BaseRepository {
     run.status = status.toUpperCase();
     run.completedAt = new Date();
     run.summary = summary;
+    run.progress = 100;
     return run.save();
   }
 }

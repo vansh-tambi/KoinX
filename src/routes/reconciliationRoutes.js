@@ -9,6 +9,9 @@ router.post('/reconcile', reconciliationController.triggerReconciliation);
 // Retrieve flat matching reports list
 router.get('/report/:runId', reconciliationController.getReconciliationReport);
 
+// Retrieve status and progress
+router.get('/report/:runId/status', reconciliationController.getReconciliationStatus);
+
 // Retrieve matching summaries statistics
 router.get('/report/:runId/summary', reconciliationController.getReconciliationSummary);
 

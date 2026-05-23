@@ -522,12 +522,13 @@ describe('Transaction Reconciliation Engine Test Suite', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('GET endpoints - should fetch report data, summary, and unmatched', async () => {
+    it('GET endpoints - should fetch report data with pagination, summary, status, and unmatched', async () => {
       const runId = 'api_run_test';
 
       await ReconciliationRun.create({
         runId,
         status: 'COMPLETED',
+        progress: 100,
         summary: {
           totalTransactions: 2,
           matchedCount: 2,
@@ -537,7 +538,7 @@ describe('Transaction Reconciliation Engine Test Suite', () => {
         }
       });
 
-      const userTx = await Transaction.create({
+      const userTx1 = await Transaction.create({
         runId,
         source: 'USER',
         originalRow: {},
@@ -546,21 +547,58 @@ describe('Transaction Reconciliation Engine Test Suite', () => {
         reconciliationStatus: 'RECONCILED'
       });
 
+      const userTx2 = await Transaction.create({
+        runId,
+        source: 'USER',
+        originalRow: {},
+        normalized: { txId: 'TX-API-2', timestamp: new Date(), type: 'BUY', asset: 'ETH', quantity: 2.0, fee: 0 },
+        ingestionStatus: { valid: true },
+        reconciliationStatus: 'RECONCILED'
+      });
+
       await ReconciliationReport.create({
         runId,
         category: 'matched',
         confidence: 1.0,
-        userTx: userTx._id,
+        userTx: userTx1._id,
         exchangeTx: null,
-        reason: 'API Test'
+        reason: 'API Test 1'
       });
 
-      // Test Report Listing
+      await ReconciliationReport.create({
+        runId,
+        category: 'matched',
+        confidence: 0.9,
+        userTx: userTx2._id,
+        exchangeTx: null,
+        reason: 'API Test 2'
+      });
+
+      // Test Status tracking
+      const resStatus = await request(app).get(`/api/reconciliation/report/${runId}/status`);
+      expect(resStatus.statusCode).toBe(200);
+      expect(resStatus.body.runId).toBe(runId);
+      expect(resStatus.body.status).toBe('COMPLETED');
+      expect(resStatus.body.progress).toBe(100);
+
+      // Test Report Listing (default pagination)
       const resReport = await request(app).get(`/api/reconciliation/report/${runId}`);
       expect(resReport.statusCode).toBe(200);
-      expect(resReport.body.success).toBe(true);
-      expect(resReport.body.reports.length).toBe(1);
-      expect(resReport.body.reports[0].user_txId).toBe('TX-API-1');
+      expect(resReport.body.data.length).toBe(2);
+      expect(resReport.body.pagination).toBeDefined();
+      expect(resReport.body.pagination.page).toBe(1);
+      expect(resReport.body.pagination.limit).toBe(100);
+      expect(resReport.body.pagination.total).toBe(2);
+      expect(resReport.body.pagination.totalPages).toBe(1);
+
+      // Test Report Listing (custom pagination)
+      const resReportPaginated = await request(app).get(`/api/reconciliation/report/${runId}?page=2&limit=1`);
+      expect(resReportPaginated.statusCode).toBe(200);
+      expect(resReportPaginated.body.data.length).toBe(1);
+      expect(resReportPaginated.body.pagination.page).toBe(2);
+      expect(resReportPaginated.body.pagination.limit).toBe(1);
+      expect(resReportPaginated.body.pagination.total).toBe(2);
+      expect(resReportPaginated.body.pagination.totalPages).toBe(2);
 
       // Test Summary
       const resSummary = await request(app).get(`/api/reconciliation/report/${runId}/summary`);
@@ -573,7 +611,7 @@ describe('Transaction Reconciliation Engine Test Suite', () => {
       const resUnmatched = await request(app).get(`/api/reconciliation/report/${runId}/unmatched`);
       expect(resUnmatched.statusCode).toBe(200);
       expect(resUnmatched.body.success).toBe(true);
-      expect(resUnmatched.body.unmatched.length).toBe(0); // We only have 'matched' record
+      expect(resUnmatched.body.unmatched.length).toBe(0); // We only have 'matched' records
     });
 
     it('GET /api/reconciliation/report/:runId/export - should return 404 if file does not exist', async () => {

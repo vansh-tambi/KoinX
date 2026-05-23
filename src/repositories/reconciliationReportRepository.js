@@ -25,5 +25,6 @@ export default {
   update: (id, data, options) => reconciliationReportRepositoryInstance.update(id, data, options),
   delete: (id) => reconciliationReportRepositoryInstance.delete(id),
   findByRunId: (runId) => reconciliationReportRepositoryInstance.findByRunId(runId),
+  count: (filter) => reconciliationReportRepositoryInstance.count(filter),
   instance: reconciliationReportRepositoryInstance,
 };

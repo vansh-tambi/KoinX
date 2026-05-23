@@ -209,7 +209,26 @@ curl -X POST http://localhost:3000/api/reconciliation/reconcile \
 
 ---
 
-### 2. Fetch Run Summary Metrics
+### 2. Retrieve Run Status & Progress
+Retrieves current processing state, status, and completion progress percentage (0-100%).
+
+* **URL**: `GET /api/reconciliation/report/:runId/status`
+* **cURL Command**:
+```bash
+curl -X GET http://localhost:3000/api/reconciliation/report/47a3e7de-cae9-4e89-9a2c-f601de9d2824/status
+```
+* **Response (`200 OK`)**:
+```json
+{
+  "runId": "47a3e7de-cae9-4e89-9a2c-f601de9d2824",
+  "status": "PROCESSING",
+  "progress": 30
+}
+```
+
+---
+
+### 3. Fetch Run Summary Metrics
 Retrieves current processing state and reconciliation statistics counters.
 
 * **URL**: `GET /api/reconciliation/report/:runId/summary`
@@ -234,19 +253,18 @@ curl -X GET http://localhost:3000/api/reconciliation/report/47a3e7de-cae9-4e89-9
 
 ---
 
-### 3. Fetch Full Flat Report
-Fetches the reconciled ledger entries (populated with transaction details) mapped to the specified flat layout.
+### 4. Fetch Paginated Flat Report
+Fetches the reconciled ledger entries (populated with transaction details) using pagination.
 
-* **URL**: `GET /api/reconciliation/report/:runId`
+* **URL**: `GET /api/reconciliation/report/:runId?page=1&limit=100`
 * **cURL Command**:
 ```bash
-curl -X GET http://localhost:3000/api/reconciliation/report/47a3e7de-cae9-4e89-9a2c-f601de9d2824
+curl -X GET "http://localhost:3000/api/reconciliation/report/47a3e7de-cae9-4e89-9a2c-f601de9d2824?page=1&limit=100"
 ```
 * **Response (`200 OK`)**:
 ```json
 {
-  "success": true,
-  "reports": [
+  "data": [
     {
       "category": "matched",
       "confidence": 0.9733,
@@ -260,13 +278,19 @@ curl -X GET http://localhost:3000/api/reconciliation/report/47a3e7de-cae9-4e89-9
       "exchange_asset": "BTC",
       "exchange_quantity": 0.5
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 100,
+    "total": 1,
+    "totalPages": 1
+  }
 }
 ```
 
 ---
 
-### 4. Fetch Unmatched Records
+### 5. Fetch Unmatched Records
 Returns records belonging strictly to unmatched user or exchange categories for audit review.
 
 * **URL**: `GET /api/reconciliation/report/:runId/unmatched`
@@ -298,7 +322,7 @@ curl -X GET http://localhost:3000/api/reconciliation/report/47a3e7de-cae9-4e89-9
 
 ---
 
-### 5. Export Report CSV
+### 6. Export Report CSV
 Initiates file download of the exported CSV sheet from the reports directory.
 
 * **URL**: `GET /api/reconciliation/report/:runId/export`

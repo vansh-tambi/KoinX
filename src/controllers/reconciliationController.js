@@ -48,6 +48,7 @@ export const triggerReconciliation = async (req, res, next) => {
     const run = await reconciliationRunRepository.create({
       runId,
       status: 'PENDING',
+      progress: 0,
       config: config || {},
       startedAt: new Date(),
       summary: {
@@ -73,13 +74,41 @@ export const triggerReconciliation = async (req, res, next) => {
 };
 
 /**
- * Retrieves all flat reports generated for a run.
+ * Retrieves the status and progress of a reconciliation run.
  * 
- * GET /report/:runId
+ * GET /report/:runId/status
+ */
+export const getReconciliationStatus = async (req, res, next) => {
+  try {
+    const { runId } = req.params;
+    const run = await reconciliationRunRepository.findByRunId(runId);
+    if (!run) {
+      return res.status(404).json({
+        success: false,
+        error: { message: `ReconciliationRun not found with runId: ${runId}` }
+      });
+    }
+    res.status(200).json({
+      runId: run.runId,
+      status: run.status,
+      progress: run.progress ?? 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Retrieves flat reports generated for a run using pagination.
+ * 
+ * GET /report/:runId?page=1&limit=100
  */
 export const getReconciliationReport = async (req, res, next) => {
   try {
     const { runId } = req.params;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const skip = (page - 1) * limit;
     
     // Check if the run exists
     const run = await reconciliationRunRepository.findByRunId(runId);
@@ -90,18 +119,26 @@ export const getReconciliationReport = async (req, res, next) => {
       });
     }
 
+    // Count total reports for this run
+    const total = await reconciliationReportRepository.count({ runId });
+
     // Retrieve report documents populating relations
     const reports = await reconciliationReportRepository.findAll(
       { runId },
-      { populate: ['userTx', 'exchangeTx'] }
+      { populate: ['userTx', 'exchangeTx'], skip, limit }
     );
 
     // Flatten to specified columns
     const flatReports = formatReportToFlatList(reports);
 
     res.status(200).json({
-      success: true,
-      reports: flatReports,
+      data: flatReports,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
     });
   } catch (err) {
     next(err);
@@ -204,6 +241,7 @@ export const exportReportCsv = async (req, res, next) => {
 
 export default {
   triggerReconciliation,
+  getReconciliationStatus,
   getReconciliationReport,
   getReconciliationSummary,
   getUnmatchedReports,
