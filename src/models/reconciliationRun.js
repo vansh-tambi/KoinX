@@ -7,11 +7,17 @@ const reconciliationRunSchema = new mongoose.Schema({
     default: uuidv4 
   },
   
-  runNumber: {
+  runId: {
     type: String,
-    required: [true, 'Run number is required'],
+    required: true,
     unique: true,
+    default: uuidv4,
     trim: true,
+  },
+  
+  config: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
   },
   
   status: {
@@ -23,6 +29,15 @@ const reconciliationRunSchema = new mongoose.Schema({
     enum: {
       values: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
       message: '{VALUE} is not a supported run status',
+    },
+  },
+  
+  summary: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {
+      totalCount: 0,
+      reconciledCount: 0,
+      unreconciledCount: 0,
     },
   },
   
@@ -42,55 +57,12 @@ const reconciliationRunSchema = new mongoose.Schema({
       message: 'completedAt ({VALUE}) must be after or equal to startedAt',
     },
   },
-  
-  totalCount: {
-    type: Number,
-    required: true,
-    default: 0,
-    min: [0, 'totalCount cannot be negative'],
-  },
-  
-  reconciledCount: {
-    type: Number,
-    required: true,
-    default: 0,
-    min: [0, 'reconciledCount cannot be negative'],
-  },
-  
-  unreconciledCount: {
-    type: Number,
-    required: true,
-    default: 0,
-    min: [0, 'unreconciledCount cannot be negative'],
-  },
-  
-  reconciliationRules: {
-    type: mongoose.Schema.Types.Mixed,
-    default: [],
-  },
-  
-  initiatedBy: {
-    type: String,
-    required: [true, 'Initiator ID or service is required'],
-    trim: true,
-  },
-  
-  errorMessage: {
-    type: String,
-    trim: true,
-    default: null,
-  },
-  
-  rawConfig: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {},
-  },
 }, { 
   timestamps: true,
 });
 
 // Indexes
-reconciliationRunSchema.index({ runNumber: 1 }, { unique: true });
+reconciliationRunSchema.index({ runId: 1 }, { unique: true });
 reconciliationRunSchema.index({ status: 1 });
 reconciliationRunSchema.index({ startedAt: -1 });
 

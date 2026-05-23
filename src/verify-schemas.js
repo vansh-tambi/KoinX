@@ -10,7 +10,8 @@ import reconciliationReportRepository from './repositories/reconciliationReportR
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || '';
+// Always force in-memory database during verification suite to avoid localhost port conflicts
+const MONGODB_URI = ''; 
 
 async function runTests() {
   let mongoServer;
@@ -49,29 +50,36 @@ async function runTests() {
     }
   }
 
+  // Define a shared runId for relational testing
+  const testRunId = 'run_uuid_999';
+
   // ==========================================
   // Test 1: Create Valid Transaction
   // ==========================================
+  let txnId;
   try {
     const txn = await transactionRepository.create({
-      externalId: 'txn_101',
-      provider: 'stripe', // will be converted to uppercase
-      type: 'credit', // will be converted to uppercase
-      status: 'success', // will be converted to uppercase
-      amount: 150.50,
-      currency: 'usd', // will be converted to uppercase
-      normalizedAmount: 150.50,
-      transactionDate: new Date('2026-05-23T10:00:00Z'),
-      metadata: { department: 'sales', checkoutId: 'ch_9988' },
-      raw: { id: 'ch_9988', object: 'charge', amount: 15050, currency: 'usd' }
+      runId: testRunId,
+      source: 'user', // will be converted to uppercase USER
+      originalRow: { tx_id: 'TXN-101', type: 'buy', amount: '2.5' },
+      normalized: {
+        txId: 'TXN-101',
+        timestamp: new Date('2026-05-23T10:00:00Z'),
+        type: 'buy', // will be converted to uppercase BUY
+        asset: 'btc', // will be converted to uppercase BTC
+        quantity: 2.5,
+        fee: 0.001
+      },
+      ingestionStatus: { valid: true, issues: [] },
+      reconciliationStatus: 'unreconciled' // will be converted to uppercase UNRECONCILED
     });
 
+    txnId = txn._id;
     assert(txn._id !== undefined, 'Transaction should have UUID as _id');
-    assert(txn.provider === 'STRIPE', 'Provider should be normalized to uppercase STRIPE');
-    assert(txn.type === 'CREDIT', 'Type should be normalized to uppercase CREDIT');
-    assert(txn.status === 'SUCCESS', 'Status should be normalized to uppercase SUCCESS');
-    assert(txn.currency === 'USD', 'Currency should be normalized to uppercase USD');
-    assert(txn.reconciliationStatus === 'UNRECONCILED', 'Default reconciliationStatus should be UNRECONCILED');
+    assert(txn.source === 'USER', 'Source should be normalized to uppercase USER');
+    assert(txn.normalized.type === 'BUY', 'Type should be normalized to uppercase BUY');
+    assert(txn.normalized.asset === 'BTC', 'Asset should be normalized to uppercase BTC');
+    assert(txn.reconciliationStatus === 'UNRECONCILED', 'Status should be normalized to uppercase UNRECONCILED');
     assert(txn.createdAt !== undefined, 'Timestamps (createdAt) should exist');
   } catch (err) {
     assert(false, `Should create valid transaction without errors: ${err.message}`);
@@ -82,53 +90,59 @@ async function runTests() {
   // ==========================================
   try {
     await transactionRepository.create({
-      externalId: 'txn_102',
-      provider: 'INVALID_PROVIDER',
-      type: 'credit',
-      status: 'success',
-      amount: 100,
-      currency: 'usd',
-      normalizedAmount: 100,
-      transactionDate: new Date()
+      runId: testRunId,
+      source: 'INVALID_SOURCE',
+      originalRow: {},
+      normalized: {
+        txId: 'TXN-102',
+        timestamp: new Date(),
+        type: 'buy',
+        asset: 'eth',
+        quantity: 1
+      }
     });
-    assert(false, 'Should have failed with invalid provider enum');
+    assert(false, 'Should have failed with invalid source enum');
   } catch (err) {
-    assert(err.errors && err.errors.provider, 'Should reject invalid provider enum');
+    assert(err.errors && err.errors.source, 'Should reject invalid source enum');
   }
 
   try {
     await transactionRepository.create({
-      externalId: 'txn_102',
-      provider: 'stripe',
-      type: 'credit',
-      status: 'success',
-      amount: -50, // Negative amount
-      currency: 'usd',
-      normalizedAmount: -50,
-      transactionDate: new Date()
+      runId: testRunId,
+      source: 'user',
+      originalRow: {},
+      normalized: {
+        txId: 'TXN-102',
+        timestamp: new Date(),
+        type: 'buy',
+        asset: 'eth',
+        quantity: -5 // Negative quantity
+      }
     });
-    assert(false, 'Should have failed with negative amount');
+    assert(false, 'Should have failed with negative quantity');
   } catch (err) {
-    assert(err.errors && err.errors.amount, 'Should reject negative amount');
+    assert(err.errors && err.errors['normalized.quantity'], 'Should reject negative quantity');
   }
 
   // ==========================================
-  // Test 3: Compound Unique Index on (provider, externalId)
+  // Test 3: Compound Unique Index on (runId, source, normalized.txId)
   // ==========================================
   try {
     await transactionRepository.create({
-      externalId: 'txn_101', // Duplicate of Test 1
-      provider: 'stripe',
-      type: 'credit',
-      status: 'success',
-      amount: 100,
-      currency: 'usd',
-      normalizedAmount: 100,
-      transactionDate: new Date()
+      runId: testRunId,
+      source: 'user',
+      originalRow: {},
+      normalized: {
+        txId: 'TXN-101', // Duplicate of Test 1 under same run and source
+        timestamp: new Date(),
+        type: 'buy',
+        asset: 'btc',
+        quantity: 2.5
+      }
     });
-    assert(false, 'Should have failed with duplicate key error for externalId + provider');
+    assert(false, 'Should have failed with duplicate key error for runId + source + normalized.txId');
   } catch (err) {
-    assert(err.code === 11000, 'Should reject duplicate provider + externalId unique constraint (Mongo code 11000)');
+    assert(err.code === 11000, 'Should reject duplicate runId + source + normalized.txId (Mongo code 11000)');
   }
 
   // ==========================================
@@ -138,16 +152,16 @@ async function runTests() {
   const oneMinuteAgo = new Date(Date.now() - 60000);
   try {
     const run = await reconciliationRunRepository.create({
-      runNumber: 'RUN-20260523-0001',
+      runId: testRunId,
+      config: { toleranceAmount: 0.01 },
       status: 'pending',
-      startedAt: oneMinuteAgo,
-      initiatedBy: 'system_cron',
-      rawConfig: { sourceFiles: ['s3://bucket/stripe-20260523.csv'] }
+      summary: { totalCount: 100, reconciledCount: 0, unreconciledCount: 100 },
+      startedAt: oneMinuteAgo
     });
     runId = run._id;
     assert(run._id !== undefined, 'ReconciliationRun should have UUID as _id');
     assert(run.status === 'PENDING', 'ReconciliationRun status should default to uppercase PENDING');
-    assert(run.totalCount === 0, 'Default totalCount should be 0');
+    assert(run.summary.totalCount === 100, 'Summary totalCount should save correctly');
   } catch (err) {
     assert(false, `Should create valid ReconciliationRun without errors: ${err.message}`);
   }
@@ -157,7 +171,7 @@ async function runTests() {
   // ==========================================
   try {
     await reconciliationRunRepository.create({
-      runNumber: 'RUN-20260523-0002',
+      runId: 'run_uuid_error',
       status: 'processing',
       startedAt: oneMinuteAgo,
       completedAt: new Date(oneMinuteAgo.getTime() - 1000), // Completed BEFORE started
@@ -169,16 +183,16 @@ async function runTests() {
   }
 
   // ==========================================
-  // Test 6: Unique Run Number
+  // Test 6: Unique runId
   // ==========================================
   try {
     await reconciliationRunRepository.create({
-      runNumber: 'RUN-20260523-0001', // Duplicate
-      initiatedBy: 'manual_user'
+      runId: testRunId, // Duplicate of Test 4
+      status: 'processing'
     });
-    assert(false, 'Should have failed with duplicate runNumber');
+    assert(false, 'Should have failed with duplicate runId');
   } catch (err) {
-    assert(err.code === 11000, 'Should reject duplicate runNumber (Mongo code 11000)');
+    assert(err.code === 11000, 'Should reject duplicate runId (Mongo code 11000)');
   }
 
   // ==========================================
@@ -187,13 +201,13 @@ async function runTests() {
   try {
     const updatedRun = await reconciliationRunRepository.completeRun(
       runId,
-      { totalCount: 1500, reconciledCount: 1480, unreconciledCount: 20 },
-      'COMPLETED'
+      { totalCount: 1000, reconciledCount: 950, unreconciledCount: 50 },
+      'completed'
     );
     assert(updatedRun.status === 'COMPLETED', 'completeRun should set status to COMPLETED');
-    assert(updatedRun.totalCount === 1500, 'completeRun should update totalCount');
-    assert(updatedRun.reconciledCount === 1480, 'completeRun should update reconciledCount');
-    assert(updatedRun.unreconciledCount === 20, 'completeRun should update unreconciledCount');
+    assert(updatedRun.summary.totalCount === 1000, 'completeRun should update summary totalCount');
+    assert(updatedRun.summary.reconciledCount === 950, 'completeRun should update summary reconciledCount');
+    assert(updatedRun.summary.unreconciledCount === 50, 'completeRun should update summary unreconciledCount');
     assert(updatedRun.completedAt >= updatedRun.startedAt, 'completedAt should be updated and after startedAt');
   } catch (err) {
     assert(false, `completeRun should update run details successfully: ${err.message}`);
@@ -205,58 +219,57 @@ async function runTests() {
   let reportId;
   try {
     const report = await reconciliationReportRepository.create({
-      runId: runId,
-      name: 'Stripe Reconciliation Report 2026-05-23',
-      type: 'daily',
-      status: 'draft',
-      summary: {
-        totalTransactions: 1500,
-        matchedTransactions: 1480,
-        mismatchedTransactions: 20,
-        totalAmountReconciled: 148000,
-        totalAmountMismatched: 2000,
-        currency: 'usd'
-      },
-      discrepancies: [
-        {
-          transactionId: 'txn_101',
-          type: 'AMOUNT_MISMATCH',
-          severity: 'high',
-          details: { expected: 150.50, actual: 150.00 }
-        }
-      ],
-      rawReportData: { note: 'Stripe webhook received late' }
+      runId: testRunId,
+      category: 'mismatched', // will be converted to MISMATCHED
+      confidence: 0.85,
+      userTx: txnId,
+      exchangeTx: 'EXC-TX-999',
+      reason: 'Quantity mismatch: user recorded 2.5 but exchange recorded 2.4'
     });
     reportId = report._id;
     assert(report._id !== undefined, 'ReconciliationReport should have UUID as _id');
-    assert(report.type === 'DAILY', 'Report type should be normalized to uppercase DAILY');
-    assert(report.discrepancies.length === 1, 'Discrepancies subdocument should save successfully');
-    assert(report.discrepancies[0].severity === 'HIGH', 'Discrepancy severity should be normalized to uppercase HIGH');
+    assert(report.category === 'MISMATCHED', 'Report category should be normalized to uppercase MISMATCHED');
+    assert(report.confidence === 0.85, 'Confidence score should save successfully');
+    assert(report.exchangeTx === 'EXC-TX-999', 'Exchange reference should save successfully');
   } catch (err) {
     assert(false, `Should create valid ReconciliationReport without errors: ${err.message}`);
   }
 
   // ==========================================
-  // Test 9: Repository Find Queries
+  // Test 9: Validation constraints on ReconciliationReport
   // ==========================================
   try {
-    const reports = await reconciliationReportRepository.findByRunId(runId);
+    await reconciliationReportRepository.create({
+      runId: testRunId,
+      category: 'matched',
+      confidence: 1.5, // confidence > 1
+      reason: 'Failed test'
+    });
+    assert(false, 'Should have failed with confidence > 1');
+  } catch (err) {
+    assert(err.errors && err.errors.confidence, 'Should reject confidence score > 1');
+  }
+
+  // ==========================================
+  // Test 10: Repository Find Queries
+  // ==========================================
+  try {
+    const reports = await reconciliationReportRepository.findByRunId(testRunId);
     assert(reports.length === 1 && reports[0]._id === reportId, 'findByRunId repository method should find the report');
 
-    const txn = await transactionRepository.findByExternalId('stripe', 'txn_101');
-    assert(txn !== null && txn.externalId === 'txn_101', 'findByExternalId repository method should find the transaction');
+    const txn = await transactionRepository.findByTxId(testRunId, 'user', 'TXN-101');
+    assert(txn !== null && txn.normalized.txId === 'TXN-101', 'findByTxId repository method should find the transaction');
   } catch (err) {
     assert(false, `Repository find helper queries should succeed: ${err.message}`);
   }
 
   // ==========================================
-  // Test 10: Repository Update Reconciliation Status
+  // Test 11: Repository Update Reconciliation Status
   // ==========================================
   try {
-    const txn = await transactionRepository.findByExternalId('stripe', 'txn_101');
-    const updatedTxn = await transactionRepository.updateReconciliation(txn._id, 'reconciled', runId);
+    const txn = await transactionRepository.findByTxId(testRunId, 'user', 'TXN-101');
+    const updatedTxn = await transactionRepository.updateReconciliation(txn._id, 'reconciled');
     assert(updatedTxn.reconciliationStatus === 'RECONCILED', 'updateReconciliation should update status to RECONCILED');
-    assert(updatedTxn.reconciliationRunId === runId, 'updateReconciliation should set reconciliationRunId');
   } catch (err) {
     assert(false, `updateReconciliation repository query should succeed: ${err.message}`);
   }

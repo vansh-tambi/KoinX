@@ -7,15 +7,17 @@ class TransactionRepository extends BaseRepository {
   }
 
   /**
-   * Find a transaction by provider and externalId.
-   * @param {string} provider 
-   * @param {string} externalId 
+   * Find a transaction by its runId, source, and normalized transaction ID.
+   * @param {string} runId 
+   * @param {string} source - USER or EXCHANGE
+   * @param {string} txId 
    * @returns {Promise<Object|null>}
    */
-  async findByExternalId(provider, externalId) {
+  async findByTxId(runId, source, txId) {
     return this.findOne({ 
-      provider: provider.toUpperCase(), 
-      externalId 
+      runId,
+      source: source.toUpperCase(), 
+      'normalized.txId': txId 
     });
   }
 
@@ -23,20 +25,18 @@ class TransactionRepository extends BaseRepository {
    * Update reconciliation status for a transaction.
    * @param {string} id 
    * @param {string} status 
-   * @param {string} [runId] 
    * @returns {Promise<Object|null>}
    */
-  async updateReconciliation(id, status, runId = null) {
+  async updateReconciliation(id, status) {
     return this.update(id, {
-      reconciliationStatus: status.toUpperCase(),
-      reconciliationRunId: runId
+      reconciliationStatus: status.toUpperCase()
     });
   }
 }
 
 const transactionRepositoryInstance = new TransactionRepository();
 
-// Backward compatible functions matching current transactionService.js usages
+// Backward compatible functions matching standard services
 export const findAll = (filter, options) => transactionRepositoryInstance.findAll(filter, options);
 export const findById = (id, populate) => transactionRepositoryInstance.findById(id, populate);
 export const create = (data) => transactionRepositoryInstance.create(data);
@@ -49,7 +49,7 @@ export default {
   create,
   update,
   delete: deleteDoc,
-  findByExternalId: (provider, externalId) => transactionRepositoryInstance.findByExternalId(provider, externalId),
-  updateReconciliation: (id, status, runId) => transactionRepositoryInstance.updateReconciliation(id, status, runId),
+  findByTxId: (runId, source, txId) => transactionRepositoryInstance.findByTxId(runId, source, txId),
+  updateReconciliation: (id, status) => transactionRepositoryInstance.updateReconciliation(id, status),
   instance: transactionRepositoryInstance,
 };

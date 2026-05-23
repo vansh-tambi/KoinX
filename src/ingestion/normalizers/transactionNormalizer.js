@@ -1,85 +1,45 @@
-const CURRENCY_ALIASES = {
-  'US-DOLLAR': 'USD',
-  'DOLLAR': 'USD',
-  'TETHER': 'USDT',
-  'TETHER USD': 'USDT',
+const ASSET_ALIASES = {
   'BITCOIN': 'BTC',
-  'ETHER': 'ETH',
   'ETHEREUM': 'ETH',
-};
-
-const TYPE_MAPPING = {
-  'DEPOSIT': 'CREDIT',
-  'PAY': 'CREDIT',
-  'IN': 'CREDIT',
-  'CREDIT': 'CREDIT',
-  'WITHDRAW': 'DEBIT',
-  'CHARGE': 'DEBIT',
-  'OUT': 'DEBIT',
-  'DEBIT': 'DEBIT',
-  'PAYMENT': 'DEBIT',
-  'REFUND': 'REFUND',
-  'REIMBURSEMENT': 'REFUND',
-  'CHARGEBACK': 'CHARGEBACK',
-  'DISPUTE': 'CHARGEBACK',
+  'SOLANA': 'SOL',
 };
 
 /**
- * Standardizes currency/asset codes based on aliases.
- * @param {string} currency 
- * @returns {string}
- */
-export const normalizeCurrency = (currency) => {
-  const upper = (currency || '').toUpperCase().trim();
-  return CURRENCY_ALIASES[upper] || upper;
-};
-
-/**
- * Maps transaction types to standard enums.
- * @param {string} type 
- * @returns {string}
- */
-export const normalizeType = (type) => {
-  const upper = (type || '').toUpperCase().trim();
-  return TYPE_MAPPING[upper] || 'DEBIT'; // fallback to standard DEBIT
-};
-
-/**
- * Normalizes date input to a UTC Date object.
- * @param {string|Date} dateVal 
- * @returns {Date}
- */
-export const normalizeDate = (dateVal) => {
-  const d = new Date(dateVal);
-  if (isNaN(d.getTime())) {
-    throw new Error(`Invalid date format: ${dateVal}`);
-  }
-  return d;
-};
-
-/**
- * Integrates all field normalizations into a single record object.
+ * Normalizes parsed CSV transaction row fields.
+ * Trims strings, converts type and asset to uppercase, maps crypto asset aliases, and parses dates to UTC.
  * 
- * @param {Object} data - Validated row data.
- * @returns {Object} Normalized transaction data.
+ * @param {Object} row - The raw CSV row object.
+ * @returns {Object} Standardized fields representing the nested normalized schema.
  */
-export const normalizeTransaction = (data) => {
-  const currency = normalizeCurrency(data.currency);
-  const type = normalizeType(data.type);
-  const transactionDate = normalizeDate(data.transactionDate);
-  const amount = Math.abs(Number(data.amount));
+export const normalizeTransactionRow = (row) => {
+  const txId = (row.transaction_id || '').trim();
+  const rawType = (row.type || '').trim().toUpperCase();
+  
+  // Normalize asset name and resolve aliases
+  const rawAsset = (row.asset || '').trim().toUpperCase();
+  const asset = ASSET_ALIASES[rawAsset] || rawAsset;
+
+  // Safely parse quantity and fee to numbers
+  const quantity = row.quantity && !isNaN(Number(row.quantity)) ? Number(row.quantity) : 0;
+  const fee = row.fee && !isNaN(Number(row.fee)) ? Number(row.fee) : 0;
+
+  // Safely parse date to UTC
+  let timestamp = null;
+  if (row.timestamp && String(row.timestamp).trim() !== '') {
+    const dateVal = new Date(row.timestamp);
+    if (!isNaN(dateVal.getTime())) {
+      timestamp = dateVal;
+    }
+  }
 
   return {
-    externalId: (data.externalId || '').trim(),
-    provider: (data.provider || '').toUpperCase().trim(),
-    type,
-    status: (data.status || '').toUpperCase().trim(),
-    amount,
-    currency,
-    normalizedAmount: amount, // Simplified: base currency conversion can happen here
-    normalizedCurrency: 'USD',
-    transactionDate,
+    txId,
+    timestamp,
+    type: rawType,
+    asset,
+    quantity,
+    fee,
   };
 };
 
-export default normalizeTransaction;
+export default normalizeTransactionRow;

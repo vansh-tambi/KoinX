@@ -7,34 +7,27 @@ class ReconciliationRunRepository extends BaseRepository {
   }
 
   /**
-   * Find a run by its unique run number.
-   * @param {string} runNumber 
+   * Find a run by its unique runId.
+   * @param {string} runId 
    * @returns {Promise<Object|null>}
    */
-  async findByRunNumber(runNumber) {
-    return this.findOne({ runNumber });
+  async findByRunId(runId) {
+    return this.findOne({ runId });
   }
 
   /**
-   * Update metrics and status for a completed/failed reconciliation run.
+   * Update summary and status for a completed/failed reconciliation run.
    * @param {string} id 
-   * @param {Object} metrics - counts of records processed
-   * @param {number} metrics.totalCount
-   * @param {number} metrics.reconciledCount
-   * @param {number} metrics.unreconciledCount
+   * @param {Object} summary - run outcome counts/details
    * @param {string} [status] - COMPLETED or FAILED
-   * @param {string} [errorMessage] - Optional error details
    * @returns {Promise<Object|null>}
    */
-  async completeRun(id, metrics, status = 'COMPLETED', errorMessage = null) {
+  async completeRun(id, summary, status = 'COMPLETED') {
     const run = await this.model.findById(id);
     if (!run) return null;
     run.status = status.toUpperCase();
     run.completedAt = new Date();
-    run.totalCount = metrics.totalCount;
-    run.reconciledCount = metrics.reconciledCount;
-    run.unreconciledCount = metrics.unreconciledCount;
-    run.errorMessage = errorMessage;
+    run.summary = summary;
     return run.save();
   }
 }
@@ -47,7 +40,7 @@ export default {
   create: (data) => reconciliationRunRepositoryInstance.create(data),
   update: (id, data, options) => reconciliationRunRepositoryInstance.update(id, data, options),
   delete: (id) => reconciliationRunRepositoryInstance.delete(id),
-  findByRunNumber: (runNumber) => reconciliationRunRepositoryInstance.findByRunNumber(runNumber),
-  completeRun: (id, metrics, status, errorMessage) => reconciliationRunRepositoryInstance.completeRun(id, metrics, status, errorMessage),
+  findByRunId: (runId) => reconciliationRunRepositoryInstance.findByRunId(runId),
+  completeRun: (id, summary, status) => reconciliationRunRepositoryInstance.completeRun(id, summary, status),
   instance: reconciliationRunRepositoryInstance,
 };
