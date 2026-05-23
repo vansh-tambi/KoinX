@@ -1,0 +1,31 @@
+{
+  "name": "transaction-reconciliation-engine",
+  "version": "0.1.0",
+  "description": "Backend service for transaction reconciliation",
+  "main": "src/app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "lint": "eslint .",
+    "test": "echo \"No tests yet\""
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "dotenv": "^16.3.1",
+    "csv-parse": "^5.3.6",
+    "csv-stringify": "^6.3.0",
+    "uuid": "^9.0.1",
+    "bullmq": "^4.4.0",
+    "zod": "^3.22.4",
+    "helmet": "^7.0.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3",
+    "eslint": "^8.46.0"
+  }
+}
