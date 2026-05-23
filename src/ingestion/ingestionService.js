@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 import { parseCsvStream } from './parser/csvParser.js';
 import { validateTransactionRow } from './validators/transactionValidator.js';
 import { normalizeTransactionRow } from './normalizers/transactionNormalizer.js';

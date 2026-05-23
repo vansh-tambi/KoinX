@@ -2,6 +2,7 @@
  * Centralized error handler middleware.
  * Formats Express exceptions cleanly for client consumption.
  */
+// eslint-disable-next-line no-unused-vars
 export const errorHandler = (err, req, res, next) => {
   console.error('Unhandled Exception:', err);
 

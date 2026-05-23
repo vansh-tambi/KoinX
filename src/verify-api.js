@@ -36,7 +36,7 @@ async function runApiTests() {
   console.log('Database cleared.');
 
   // Import the Express app dynamically after setting process.env.MONGODB_URI
-  const { default: app } = await import('./app.js');
+  await import('./app.js');
   
   let testsPassed = 0;
   let testsFailed = 0;
@@ -257,7 +257,7 @@ async function runApiTests() {
       this.jsonPayload = payload;
       return this;
     },
-    download: function(filePath, filename) {
+    download: function(filePath) {
       downloadTriggered = true;
       downloadedPath = filePath;
     }
@@ -282,7 +282,9 @@ async function runApiTests() {
     const reportsDir = path.resolve('reports');
     await fs.unlink(path.join(reportsDir, `report_${activeRunId}.json`));
     await fs.unlink(path.join(reportsDir, `report_${activeRunId}.csv`));
-  } catch (err) {}
+  } catch (err) {
+    // Ignore cleanup errors
+  }
 
   await mongoose.disconnect();
   if (mongoServer) {

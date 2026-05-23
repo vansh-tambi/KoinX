@@ -36,7 +36,6 @@ const validateTransactionRow = (await import('../src/ingestion/validators/transa
 const normalizeTransactionRow = (await import('../src/ingestion/normalizers/transactionNormalizer.js')).default;
 const calculateMatchScore = (await import('../src/matching/strategy/matchingStrategy.js')).calculateMatchScore;
 const checkTypeAlignment = (await import('../src/matching/strategy/matchingStrategy.js')).checkTypeAlignment;
-const { ingestCsvFile } = await import('../src/ingestion/ingestionService.js');
 const { runReconciliation } = await import('../src/matching/services/reconciliationService.js');
 const { generateReportsForRun } = await import('../src/reporting/reportService.js');
 const Transaction = (await import('../src/models/transaction.js')).default;
