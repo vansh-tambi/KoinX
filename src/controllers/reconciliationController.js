@@ -18,8 +18,8 @@ const reconcileRequestSchema = z.object({
   }).min(1, 'exchangeFile path cannot be empty'),
   
   config: z.object({
-    timestampTolerance: z.number().int().positive('timestampTolerance must be a positive integer').optional(),
-    quantityTolerance: z.number().positive('quantityTolerance must be a positive percentage value').optional(),
+    timestampTolerance: z.number().int().nonnegative('timestampTolerance must be a non-negative integer').optional(),
+    quantityTolerance: z.number().nonnegative('quantityTolerance must be a non-negative percentage value').optional(),
   }).optional(),
 });
 

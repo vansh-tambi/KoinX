@@ -263,6 +263,48 @@ describe('Transaction Reconciliation Engine Test Suite', () => {
       const result = calculateMatchScore(userTx, exchangeTx, customTolerances);
       expect(result.isMatch).toBe(true);
     });
+
+    it('should support explicit zero tolerances (timestampTolerance=0, quantityTolerance=0)', () => {
+      const userTx = {
+        normalized: {
+          asset: 'BTC',
+          type: 'BUY',
+          quantity: 10.0,
+          timestamp: new Date('2026-05-23T10:00:00Z')
+        }
+      };
+      
+      const exactMatchTx = {
+        normalized: {
+          asset: 'BTC',
+          type: 'BUY',
+          quantity: 10.0,
+          timestamp: new Date('2026-05-23T10:00:00Z')
+        }
+      };
+
+      const slightDiffTx = {
+        normalized: {
+          asset: 'BTC',
+          type: 'BUY',
+          quantity: 10.0001,
+          timestamp: new Date('2026-05-23T10:00:00Z')
+        }
+      };
+
+      const zeroTolerances = {
+        timestampToleranceSeconds: 0,
+        quantityTolerancePct: 0
+      };
+
+      const exactResult = calculateMatchScore(userTx, exactMatchTx, zeroTolerances);
+      expect(exactResult.isMatch).toBe(true);
+      expect(exactResult.confidence).toBe(1.0);
+
+      const slightResult = calculateMatchScore(userTx, slightDiffTx, zeroTolerances);
+      expect(slightResult.isMatch).toBe(false);
+      expect(slightResult.reason).toContain('quantity variance');
+    });
   });
 
   // =========================================================================

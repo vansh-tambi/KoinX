@@ -39,8 +39,8 @@ export const calculateMatchScore = (userTx, exchangeTx, customTolerances = {}) =
   const e = exchangeTx.normalized;
 
   // Resolve config-driven tolerances or fallback to defaults
-  const timestampToleranceLimit = customTolerances.timestampToleranceSeconds || tolerances.timestampToleranceSeconds;
-  const quantityToleranceLimit = customTolerances.quantityTolerancePct || tolerances.quantityTolerancePct;
+  const timestampToleranceLimit = customTolerances.timestampToleranceSeconds ?? tolerances.timestampToleranceSeconds;
+  const quantityToleranceLimit = customTolerances.quantityTolerancePct ?? tolerances.quantityTolerancePct;
 
   // 1. Asset must match exactly.
   if (u.asset !== e.asset) {
@@ -62,7 +62,9 @@ export const calculateMatchScore = (userTx, exchangeTx, customTolerances = {}) =
   let timestampScore = 0;
   if (isTimeWithinTolerance) {
     // Proportional matching score: linear decay towards the tolerance limit
-    timestampScore = 50 * (1 - (timeDiffSeconds / timestampToleranceLimit));
+    timestampScore = timestampToleranceLimit > 0
+      ? 50 * (1 - (timeDiffSeconds / timestampToleranceLimit))
+      : 50;
   }
 
   // 4. Quantity proximity check (Weight = 30)
@@ -74,7 +76,9 @@ export const calculateMatchScore = (userTx, exchangeTx, customTolerances = {}) =
   let quantityScore = 0;
   if (isQtyWithinTolerance) {
     // Proportional matching score: linear decay towards the tolerance limit
-    quantityScore = 30 * (1 - (qtyPct / quantityToleranceLimit));
+    quantityScore = quantityToleranceLimit > 0
+      ? 30 * (1 - (qtyPct / quantityToleranceLimit))
+      : 30;
   }
 
   // Total scoring (max 100) and confidence (0.0 to 1.0)
