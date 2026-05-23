@@ -27,14 +27,15 @@ class ReconciliationRunRepository extends BaseRepository {
    * @returns {Promise<Object|null>}
    */
   async completeRun(id, metrics, status = 'COMPLETED', errorMessage = null) {
-    return this.update(id, {
-      status: status.toUpperCase(),
-      completedAt: new Date(),
-      totalCount: metrics.totalCount,
-      reconciledCount: metrics.reconciledCount,
-      unreconciledCount: metrics.unreconciledCount,
-      errorMessage
-    });
+    const run = await this.model.findById(id);
+    if (!run) return null;
+    run.status = status.toUpperCase();
+    run.completedAt = new Date();
+    run.totalCount = metrics.totalCount;
+    run.reconciledCount = metrics.reconciledCount;
+    run.unreconciledCount = metrics.unreconciledCount;
+    run.errorMessage = errorMessage;
+    return run.save();
   }
 }
 

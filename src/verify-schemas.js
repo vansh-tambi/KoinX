@@ -1,21 +1,40 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import Transaction from './models/transaction.js';
+import ReconciliationRun from './models/reconciliationRun.js';
+import ReconciliationReport from './models/reconciliationReport.js';
 import transactionRepository from './repositories/transactionRepository.js';
 import reconciliationRunRepository from './repositories/reconciliationRunRepository.js';
 import reconciliationReportRepository from './repositories/reconciliationReportRepository.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/reconciliation_test';
+const MONGODB_URI = process.env.MONGODB_URI || '';
 
 async function runTests() {
-  console.log(`Connecting to MongoDB at: ${MONGODB_URI}`);
-  await mongoose.connect(MONGODB_URI);
+  let mongoServer;
+  let uri = MONGODB_URI;
+
+  if (!uri) {
+    console.log('Starting MongoMemoryServer...');
+    mongoServer = await MongoMemoryServer.create();
+    uri = mongoServer.getUri();
+  }
+
+  console.log(`Connecting to MongoDB at: ${uri}`);
+  await mongoose.connect(uri);
   console.log('MongoDB connected successfully.\n');
 
   // Clear test collections
   await mongoose.connection.db.dropDatabase();
   console.log('Database cleared for testing.');
+
+  // Ensure indexes are built
+  await Transaction.init();
+  await ReconciliationRun.init();
+  await ReconciliationReport.init();
+  console.log('Indexes synchronized.');
 
   let testsPassed = 0;
   let testsFailed = 0;
@@ -116,11 +135,12 @@ async function runTests() {
   // Test 4: Create Valid ReconciliationRun
   // ==========================================
   let runId;
+  const oneMinuteAgo = new Date(Date.now() - 60000);
   try {
     const run = await reconciliationRunRepository.create({
       runNumber: 'RUN-20260523-0001',
       status: 'pending',
-      startedAt: new Date('2026-05-23T15:00:00Z'),
+      startedAt: oneMinuteAgo,
       initiatedBy: 'system_cron',
       rawConfig: { sourceFiles: ['s3://bucket/stripe-20260523.csv'] }
     });
@@ -139,8 +159,8 @@ async function runTests() {
     await reconciliationRunRepository.create({
       runNumber: 'RUN-20260523-0002',
       status: 'processing',
-      startedAt: new Date('2026-05-23T15:00:00Z'),
-      completedAt: new Date('2026-05-23T14:00:00Z'), // Completed BEFORE started
+      startedAt: oneMinuteAgo,
+      completedAt: new Date(oneMinuteAgo.getTime() - 1000), // Completed BEFORE started
       initiatedBy: 'system_cron'
     });
     assert(false, 'Should have failed with completedAt before startedAt');
@@ -247,6 +267,9 @@ async function runTests() {
   console.log('==========================================');
 
   await mongoose.disconnect();
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
   console.log('Database disconnected.');
 
   if (testsFailed > 0) {
@@ -256,8 +279,8 @@ async function runTests() {
   }
 }
 
-runTests().catch(err => {
+runTests().catch(async (err) => {
   console.error('Test script crashed:', err);
-  mongoose.disconnect();
+  await mongoose.disconnect();
   process.exit(1);
 });
