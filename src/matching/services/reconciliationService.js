@@ -1,50 +1,220 @@
 import transactionRepository from '../../repositories/transactionRepository.js';
 import reconciliationRunRepository from '../../repositories/reconciliationRunRepository.js';
 import reconciliationReportRepository from '../../repositories/reconciliationReportRepository.js';
-import compareTransactions from '../strategy/matchingStrategy.js';
+import Transaction from '../../models/transaction.js';
+import { calculateMatchScore } from '../strategy/matchingStrategy.js';
 
 /**
- * Executes a reconciliation process matching User vs Exchange transactions.
+ * Executes the two-pass reconciliation flow over ingested transactions.
  * 
- * @param {string} runId - The ID of the ReconciliationRun tracking this job.
- * @returns {Promise<Object>} The summary report details.
+ * @param {string} runId - The runId matching the ReconciliationRun.
+ * @returns {Promise<Object>} Summary statistics of the matching run.
  */
 export const runReconciliation = async (runId) => {
-  // Retrieve the run details
-  const run = await reconciliationRunRepository.findById(runId);
+  // Fetch ReconciliationRun metadata
+  const run = await reconciliationRunRepository.findByRunId(runId);
   if (!run) {
-    throw new Error(`ReconciliationRun not found with ID ${runId}`);
+    throw new Error(`ReconciliationRun not found with runId: ${runId}`);
   }
 
-  // Business logic placeholder
-  // A production pipeline would query transactions, apply the comparison matching strategy,
-  // group unmatched items as discrepancies, and compile aggregates.
-  
-  // Update run metadata
-  await reconciliationRunRepository.completeRun(runId, {
-    totalCount: 0,
-    reconciledCount: 0,
-    unreconciledCount: 0
-  });
-
-  // Create report stub
-  const report = await reconciliationReportRepository.create({
+  // Retrieve all valid, unreconciled transactions for this run
+  const userTxs = await transactionRepository.findAll({
     runId,
-    name: `Report for run ${run.runNumber}`,
-    type: 'AD_HOC',
-    status: 'DRAFT',
-    summary: {
-      totalTransactions: 0,
-      matchedTransactions: 0,
-      mismatchedTransactions: 0,
-      totalAmountReconciled: 0,
-      totalAmountMismatched: 0,
-      currency: 'USD'
-    },
-    discrepancies: []
+    source: 'USER',
+    'ingestionStatus.valid': true,
+    reconciliationStatus: 'UNRECONCILED',
   });
 
-  return report;
+  const exchangeTxs = await transactionRepository.findAll({
+    runId,
+    source: 'EXCHANGE',
+    'ingestionStatus.valid': true,
+    reconciliationStatus: 'UNRECONCILED',
+  });
+
+  const matchedTxIds = new Set();
+  const reportsToCreate = [];
+  const reconciledTxIds = [];
+  const failedTxIds = [];
+
+  let countMatched = 0;
+  let countConflicting = 0;
+
+  // Map exchange transactions by txId for fast lookup during Pass 1
+  const exchangeMap = new Map();
+  for (const tx of exchangeTxs) {
+    if (tx.normalized.txId) {
+      exchangeMap.set(tx.normalized.txId, tx);
+    }
+  }
+
+  // ==========================================
+  // PASS 1: ID-Based Matching
+  // ==========================================
+  for (const userTx of userTxs) {
+    const txId = userTx.normalized.txId;
+    if (!txId) continue;
+
+    const exchangeTx = exchangeMap.get(txId);
+    if (exchangeTx) {
+      const matchResult = calculateMatchScore(userTx, exchangeTx);
+
+      if (matchResult.isMatch) {
+        // High confidence match confirmed
+        countMatched++;
+        matchedTxIds.add(userTx._id);
+        matchedTxIds.add(exchangeTx._id);
+        
+        reconciledTxIds.push(userTx._id);
+        reconciledTxIds.push(exchangeTx._id);
+
+        reportsToCreate.push({
+          runId,
+          category: 'matched',
+          confidence: matchResult.confidence,
+          userTx: userTx._id,
+          exchangeTx: exchangeTx._id,
+          reason: matchResult.reason,
+        });
+      } else {
+        // ID matches but details conflict (discrepancy)
+        countConflicting++;
+        matchedTxIds.add(userTx._id);
+        matchedTxIds.add(exchangeTx._id);
+
+        failedTxIds.push(userTx._id);
+        failedTxIds.push(exchangeTx._id);
+
+        reportsToCreate.push({
+          runId,
+          category: 'conflicting',
+          confidence: matchResult.confidence,
+          userTx: userTx._id,
+          exchangeTx: exchangeTx._id,
+          reason: matchResult.reason,
+        });
+      }
+    }
+  }
+
+  // Filter remaining unmatched transaction lists for Pass 2
+  const unmatchedUserList = userTxs.filter(tx => !matchedTxIds.has(tx._id));
+  const unmatchedExchangeList = exchangeTxs.filter(tx => !matchedTxIds.has(tx._id));
+
+  // ==========================================
+  // PASS 2: Proximity Matching (Weighted scoring)
+  // ==========================================
+  for (const userTx of unmatchedUserList) {
+    let bestExchangeTx = null;
+    let highestConfidence = 0;
+    let bestReason = '';
+
+    for (const exchangeTx of unmatchedExchangeList) {
+      // Skip if exchange transaction has already been matched during Pass 2
+      if (matchedTxIds.has(exchangeTx._id)) continue;
+
+      const scoreResult = calculateMatchScore(userTx, exchangeTx);
+
+      // Pass 2 proximity matches must meet tolerance checks
+      if (scoreResult.isMatch && scoreResult.confidence > highestConfidence) {
+        highestConfidence = scoreResult.confidence;
+        bestExchangeTx = exchangeTx;
+        bestReason = scoreResult.reason;
+      }
+    }
+
+    if (bestExchangeTx) {
+      countMatched++;
+      matchedTxIds.add(userTx._id);
+      matchedTxIds.add(bestExchangeTx._id);
+
+      reconciledTxIds.push(userTx._id);
+      reconciledTxIds.push(bestExchangeTx._id);
+
+      reportsToCreate.push({
+        runId,
+        category: 'matched',
+        confidence: highestConfidence,
+        userTx: userTx._id,
+        exchangeTx: bestExchangeTx._id,
+        reason: `Pass 2 Proximity Match: ${bestReason}`,
+      });
+    }
+  }
+
+  // ==========================================
+  // Post-Matching: Unmatched Records Logging
+  // ==========================================
+  const finalUnmatchedUser = userTxs.filter(tx => !matchedTxIds.has(tx._id));
+  const finalUnmatchedExchange = exchangeTxs.filter(tx => !matchedTxIds.has(tx._id));
+
+  for (const tx of finalUnmatchedUser) {
+    failedTxIds.push(tx._id);
+    reportsToCreate.push({
+      runId,
+      category: 'unmatched_user',
+      confidence: 1.0,
+      userTx: tx._id,
+      exchangeTx: null,
+      reason: 'No matching exchange transaction found by ID or proximity window.',
+    });
+  }
+
+  for (const tx of finalUnmatchedExchange) {
+    failedTxIds.push(tx._id);
+    reportsToCreate.push({
+      runId,
+      category: 'unmatched_exchange',
+      confidence: 1.0,
+      userTx: null,
+      exchangeTx: tx._id,
+      reason: 'No matching user transaction found by ID or proximity window.',
+    });
+  }
+
+  // ==========================================
+  // Database Updates & Complete Run
+  // ==========================================
+  
+  // 1. Bulk insert generated reports
+  if (reportsToCreate.length > 0) {
+    const reportOperations = reportsToCreate.map(doc => ({
+      insertOne: { document: doc }
+    }));
+    await reconciliationReportRepository.instance.bulkWrite(reportOperations);
+  }
+
+  // 2. Bulk update transaction statuses
+  if (reconciledTxIds.length > 0) {
+    await Transaction.updateMany(
+      { _id: { $in: reconciledTxIds } },
+      { reconciliationStatus: 'RECONCILED' }
+    );
+  }
+  if (failedTxIds.length > 0) {
+    await Transaction.updateMany(
+      { _id: { $in: failedTxIds } },
+      { reconciliationStatus: 'FAILED' }
+    );
+  }
+
+  // 3. Compile summary counters and update ReconciliationRun status
+  const totalProcessed = userTxs.length + exchangeTxs.length;
+  const summary = {
+    totalTransactions: totalProcessed,
+    matchedCount: countMatched * 2, // 2 records per pair
+    conflictingCount: countConflicting * 2, // 2 records per pair
+    unmatchedUserCount: finalUnmatchedUser.length,
+    unmatchedExchangeCount: finalUnmatchedExchange.length,
+  };
+
+  await reconciliationRunRepository.completeRun(run._id, summary, 'COMPLETED');
+
+  return {
+    success: true,
+    runId,
+    summary,
+  };
 };
 
 export default { runReconciliation };

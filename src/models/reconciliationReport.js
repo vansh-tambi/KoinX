@@ -17,10 +17,10 @@ const reconciliationReportSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Report category is required'],
-    uppercase: true,
+    lowercase: true,
     trim: true,
     enum: {
-      values: ['MATCHED', 'MISMATCHED', 'MISSING_IN_USER', 'MISSING_IN_EXCHANGE'],
+      values: ['matched', 'conflicting', 'unmatched_user', 'unmatched_exchange'],
       message: '{VALUE} is not a supported report category',
     },
   },
