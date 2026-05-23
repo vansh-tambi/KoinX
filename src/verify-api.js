@@ -9,6 +9,7 @@ import ReconciliationRun from './models/reconciliationRun.js';
 import ReconciliationReport from './models/reconciliationReport.js';
 
 dotenv.config();
+process.env.NODE_ENV = 'test';
 
 // Force in-memory database during verification suite to avoid localhost conflicts
 const MONGODB_URI = '';

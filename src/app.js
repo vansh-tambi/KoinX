@@ -29,20 +29,22 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 
 // Connect to DB and Start Listening
-connectDb()
-  .then(() => {
-    // Start Express listener
-    app.listen(PORT, () => {
-      console.log(`[SERVER] Listening on port ${PORT}`);
-    });
+if (process.env.NODE_ENV !== 'test') {
+  connectDb()
+    .then(() => {
+      // Start Express listener
+      app.listen(PORT, () => {
+        console.log(`[SERVER] Listening on port ${PORT}`);
+      });
 
-    // Start BullMQ background worker
-    console.log('[JOBS] Starting reconciliation background worker...');
-    startReconciliationWorker();
-  })
-  .catch((err) => {
-    console.error('[FATAL] Failed to bootstrap database connection', err);
-    process.exit(1);
-  });
+      // Start BullMQ background worker
+      console.log('[JOBS] Starting reconciliation background worker...');
+      startReconciliationWorker();
+    })
+    .catch((err) => {
+      console.error('[FATAL] Failed to bootstrap database connection', err);
+      process.exit(1);
+    });
+}
 
 export default app;

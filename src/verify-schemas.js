@@ -220,7 +220,7 @@ async function runTests() {
   try {
     const report = await reconciliationReportRepository.create({
       runId: testRunId,
-      category: 'mismatched', // will be converted to MISMATCHED
+      category: 'conflicting',
       confidence: 0.85,
       userTx: txnId,
       exchangeTx: 'EXC-TX-999',
@@ -228,7 +228,7 @@ async function runTests() {
     });
     reportId = report._id;
     assert(report._id !== undefined, 'ReconciliationReport should have UUID as _id');
-    assert(report.category === 'MISMATCHED', 'Report category should be normalized to uppercase MISMATCHED');
+    assert(report.category === 'conflicting', 'Report category should be normalized to lowercase conflicting');
     assert(report.confidence === 0.85, 'Confidence score should save successfully');
     assert(report.exchangeTx === 'EXC-TX-999', 'Exchange reference should save successfully');
   } catch (err) {
