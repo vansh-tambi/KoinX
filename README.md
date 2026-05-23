@@ -51,12 +51,12 @@ graph TD
 ### Module Breakdown
 
 * **`src/config/`**: Centralizes database, Redis, and global tolerance default configuration.
-* **`src/ingestion/`**: Stream parser that processes CSV records line-by-line (`O(1)` memory), validating fields and normalizing strings.
+* **`src/ingestion/`**: Stream parser that processes CSV records line-by-line (`O(1)` memory), validating fields and normalizing strings, utilizing `insertMany` batching (`BATCH_SIZE=500`) for high-throughput database storage.
 * **`src/matching/`**: Core matching rules and orchestration service conducting two passes (ID-based, then proximity-based).
 * **`src/reporting/`**: Report service converting matching outcomes into flat JSON arrays and compliant CSV sheets.
 * **`src/repositories/`**: Database abstraction layer implementing the Repository pattern over Mongoose models.
 * **`src/models/`**: MongoDB Mongoose schemas for transactions, runs, and reports.
-* **`src/jobs/`**: BullMQ async Queue and Worker handlers processing CPU-bound calculations in the background.
+* **`src/jobs/`**: BullMQ async Queue and Worker handlers processing CPU-bound calculations in the background, serving as the single source of truth for the `progress` lifecycle (0-100%).
 
 ---
 
@@ -92,7 +92,8 @@ PORT=3000
 MONGODB_URI=mongodb://127.0.0.1:27017/reconciliation
 REDIS_URL=redis://127.0.0.1:6379
 
-# Fallback global matching tolerances (used if not passed in API trigger payload)
+# Fallback global matching tolerances (used if not passed in API trigger payload). 
+# Note: Explicit values of 0 in the payload will correctly override these defaults.
 TIMESTAMP_TOLERANCE_SECONDS=60
 QUANTITY_TOLERANCE_PCT=0.02
 ```
