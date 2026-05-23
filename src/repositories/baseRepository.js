@@ -80,6 +80,16 @@ class BaseRepository {
   }
 
   /**
+   * Insert multiple documents.
+   * @param {Array<Object>} docs - Documents to insert.
+   * @param {Object} [options] - insertMany options.
+   * @returns {Promise<Array<Object>>}
+   */
+  async insertMany(docs, options = {}) {
+    return this.model.insertMany(docs, options);
+  }
+
+  /**
    * Update an existing document by its _id.
    * @param {string} id - The document identifier.
    * @param {Object} data - Update data.

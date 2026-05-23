@@ -40,6 +40,7 @@ const transactionRepositoryInstance = new TransactionRepository();
 export const findAll = (filter, options) => transactionRepositoryInstance.findAll(filter, options);
 export const findById = (id, populate) => transactionRepositoryInstance.findById(id, populate);
 export const create = (data) => transactionRepositoryInstance.create(data);
+export const insertMany = (docs, options) => transactionRepositoryInstance.insertMany(docs, options);
 export const update = (id, data, options) => transactionRepositoryInstance.update(id, data, options);
 export const deleteDoc = (id) => transactionRepositoryInstance.delete(id);
 
@@ -47,6 +48,7 @@ export default {
   findAll,
   findById,
   create,
+  insertMany,
   update,
   delete: deleteDoc,
   findByTxId: (runId, source, txId) => transactionRepositoryInstance.findByTxId(runId, source, txId),

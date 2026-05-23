@@ -206,7 +206,7 @@ export const runReconciliation = async (runId) => {
     );
   }
 
-  // 3. Compile summary counters and update ReconciliationRun status
+  // 3. Compile summary counters
   const totalProcessed = userTxs.length + exchangeTxs.length;
   const summary = {
     totalTransactions: totalProcessed,
@@ -215,8 +215,6 @@ export const runReconciliation = async (runId) => {
     unmatchedUserCount: finalUnmatchedUser.length,
     unmatchedExchangeCount: finalUnmatchedExchange.length,
   };
-
-  await reconciliationRunRepository.completeRun(run._id, summary, 'COMPLETED');
 
   return {
     success: true,

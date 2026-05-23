@@ -27,7 +27,7 @@ const reconciliationRunSchema = new mongoose.Schema({
     trim: true,
     default: 'PENDING',
     enum: {
-      values: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
+      values: ['PENDING', 'PROCESSING', 'MATCHING', 'REPORTING', 'COMPLETED', 'FAILED'],
       message: '{VALUE} is not a supported run status',
     },
   },

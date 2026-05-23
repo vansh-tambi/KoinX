@@ -398,12 +398,10 @@ describe('Transaction Reconciliation Engine Test Suite', () => {
       const summary = await runReconciliation(runId);
       expect(summary.success).toBe(true);
 
-      const runRecord = await ReconciliationRun.findOne({ runId });
-      expect(runRecord.status).toBe('COMPLETED');
-      expect(runRecord.summary.matchedCount).toBe(4); // 2 pairs = 4 transactions
-      expect(runRecord.summary.conflictingCount).toBe(2); // 1 pair = 2 transactions
-      expect(runRecord.summary.unmatchedUserCount).toBe(1);
-      expect(runRecord.summary.unmatchedExchangeCount).toBe(1);
+      expect(summary.summary.matchedCount).toBe(4); // 2 pairs = 4 transactions
+      expect(summary.summary.conflictingCount).toBe(2); // 1 pair = 2 transactions
+      expect(summary.summary.unmatchedUserCount).toBe(1);
+      expect(summary.summary.unmatchedExchangeCount).toBe(1);
 
       // Verify report documents
       const matchedReports = await ReconciliationReport.find({ runId, category: 'matched' });

@@ -27,10 +27,6 @@ export const ingestCsvFile = async (filePath, runId, source) => {
     throw new Error(`ReconciliationRun not found with runId: ${runId}`);
   }
 
-  // Update status to PROCESSING
-  run.status = 'PROCESSING';
-  await run.save();
-
   const processedTxIds = new Set();
   let totalRows = 0;
   let validRows = 0;
@@ -92,16 +88,7 @@ export const ingestCsvFile = async (filePath, runId, source) => {
       }
     );
 
-    // Update reconciliation run metrics
-    const existingSummary = run.summary || {};
-    const updatedSummary = {
-      totalCount: (existingSummary.totalCount || 0) + totalRows,
-      reconciledCount: existingSummary.reconciledCount || 0,
-      unreconciledCount: (existingSummary.unreconciledCount || 0) + validRows,
-      invalidCount: (existingSummary.invalidCount || 0) + invalidRows,
-    };
-
-    await reconciliationRunRepository.completeRun(run._id, updatedSummary, 'COMPLETED');
+    // No longer updating run summary or status here; handled by background worker.
 
     return {
       success: true,
@@ -115,10 +102,6 @@ export const ingestCsvFile = async (filePath, runId, source) => {
 
   } catch (err) {
     console.error(`[INGESTION ERROR] Ingestion aborted for file ${filePath}:`, err);
-    // Mark run as failed
-    run.status = 'FAILED';
-    run.completedAt = new Date();
-    await run.save();
     throw err;
   }
 };
