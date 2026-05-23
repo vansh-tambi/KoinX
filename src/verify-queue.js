@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs/promises';
 import Redis from 'ioredis';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import Transaction from './models/transaction.js';
@@ -8,8 +9,6 @@ import ReconciliationRun from './models/reconciliationRun.js';
 import ReconciliationReport from './models/reconciliationReport.js';
 import reconciliationRunRepository from './repositories/reconciliationRunRepository.js';
 import { ingestCsvFile } from './ingestion/ingestionService.js';
-import { queueReconciliationJob } from './jobs/reconciliationQueue.js';
-import { startReconciliationWorker } from './jobs/reconciliationWorker.js';
 
 dotenv.config();
 
@@ -102,6 +101,10 @@ async function runQueueTests() {
   // 4. Trigger Async Pipeline
   if (isRedisRunning) {
     console.log('\nStarting BullMQ background worker and enqueuing job...');
+    // Dynamically import to prevent connection errors when Redis is offline
+    const { queueReconciliationJob } = await import('./jobs/reconciliationQueue.js');
+    const { startReconciliationWorker } = await import('./jobs/reconciliationWorker.js');
+
     const worker = startReconciliationWorker();
     
     // Add job to queue
@@ -124,7 +127,7 @@ async function runQueueTests() {
     await worker.close();
   } else {
     console.log('\nRunning mock queue pipeline execution...');
-    // Direct invocation of the matching and reporting services to verify database transitions offline
+    // Direct invocation of matching and reporting services
     const run = await reconciliationRunRepository.findByRunId(testRunId);
     assert(run !== null, 'ReconciliationRun should exist');
     
@@ -149,7 +152,8 @@ async function runQueueTests() {
   try {
     const run = await ReconciliationRun.findOne({ runId: testRunId });
     assert(run.status === 'COMPLETED', `ReconciliationRun status should transition to COMPLETED (actual: ${run.status})`);
-    assert(run.summary.totalTransactions === 51, `ReconciliationRun summary totalTransactions should equal 51 (actual: ${run.summary.totalTransactions})`);
+    // Expected: 47 valid transactions (51 total - 4 invalid rows)
+    assert(run.summary.totalTransactions === 47, `ReconciliationRun summary totalTransactions should equal 47 (actual: ${run.summary.totalTransactions})`);
     assert(run.completedAt !== undefined, 'ReconciliationRun completedAt timestamp should be set');
   } catch (err) {
     assert(false, `ReconciliationRun validation failed: ${err.message}`);
@@ -157,6 +161,7 @@ async function runQueueTests() {
 
   try {
     const reportCount = await ReconciliationReport.countDocuments({ runId: testRunId });
+    // Total reports includes matched pairs, conflicts, and unmatched records
     assert(reportCount > 0, `Should have generated report entries in the database (actual: ${reportCount})`);
   } catch (err) {
     assert(false, `ReconciliationReport count check failed: ${err.message}`);
